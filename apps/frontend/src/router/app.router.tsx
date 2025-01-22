@@ -1,12 +1,12 @@
+import { JoinPage } from "@/components/pages/join.page";
 import { RouteObject } from "react-router-dom";
 
 export const router: RouteObject = {
     path: "/",
-    element: <></>,
     children: [
         {
-            path: "/join",
-            element: <></>
+            index: true,
+            element: <JoinPage />
         }
     ]
 }
