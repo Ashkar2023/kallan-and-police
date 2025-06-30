@@ -1,8 +1,7 @@
-import { RoomStatus, socketEvents } from "@/constants/events.js";
+import { RoomStatus, socketEvents, Player } from "common";
 import { ROOMS_MAP, ROOMS } from "@/data/data.js";
-import { generateRoomId } from "@/utils/gen.js";
+import { generateRoomId, passwordGen } from "@/utils/gen.js";
 import logger from "@/utils/logger.js";
-import { Player } from "common";
 import { randomUUID } from "node:crypto";
 import { Server, Socket } from "socket.io";
 
@@ -20,6 +19,7 @@ export const createRoom = (socket: Socket, io: Server) => {
                     status: "NOT_READY"
                 }
             },
+            password: await passwordGen(),
             rounds: [],
             status: RoomStatus.IDLE,
         });
@@ -33,7 +33,7 @@ export const createRoom = (socket: Socket, io: Server) => {
 
 // join room
 export const joinRoom = (socket: Socket, io: Server) => {
-    return ({ player_name, roomKey }: { player_name: string, roomKey: string }) => {
+    return ({ player_name, roomKey, password }: { player_name: string, roomKey: string, password: string }) => {
         try {
             const room = ROOMS_MAP.get(roomKey);
             if (!room) {
