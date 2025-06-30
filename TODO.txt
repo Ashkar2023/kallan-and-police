@@ -1,0 +1,5 @@
+state manager
+PWA 
+
+app wise: 
+    - qr code for joining a room
