@@ -1,4 +1,4 @@
-import { Room } from "@/types/game.types.js";
+import { Room } from "common";
 
 export const ROOMS: Set<string> = new Set();
 

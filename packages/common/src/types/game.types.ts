@@ -1,12 +1,12 @@
 import { UUID } from "node:crypto";
-import { RoomStatus } from "@/constants/events.js";
-import { Kallan, Police, RoleLiterals, RolesForRound } from "@/types/player.types.js"
-import { Player } from "common";
+import { Kallan, Player, Police, RoleLiterals, RolesForRound } from "./player.types.js";
+import { RoomStatus } from "../constants/events.js";
 
 export interface Room {
     rounds: Round[];
     players: Record<UUID, Player>;
     status: RoomStatus;
+    password: string
 }
 
 export type RoundStatus = "STARTING" | "ACTIVE" | "END";

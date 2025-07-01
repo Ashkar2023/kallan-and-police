@@ -1,10 +1,10 @@
-import { RoomStatus, socketEvents } from "@/constants/events.js";
-import { ROOMS_MAP, ROOMS } from "@/data/data.js";
-import { generateRoomId } from "@/utils/gen.js";
-import logger from "@/utils/logger.js";
-import { Player } from "common";
+
+import { Player, RoomStatus, socketEvents } from "common";
 import { randomUUID } from "node:crypto";
 import { Server, Socket } from "socket.io";
+import { ROOMS, ROOMS_MAP } from "src/data/data.js";
+import { generateRoomId, passwordGen } from "src/utils/gen.js";
+import logger from "src/utils/logger.js";
 
 // create room
 export const createRoom = (socket: Socket, io: Server) => {
@@ -20,6 +20,7 @@ export const createRoom = (socket: Socket, io: Server) => {
                     status: "NOT_READY"
                 }
             },
+            password: await passwordGen(),
             rounds: [],
             status: RoomStatus.IDLE,
         });
@@ -33,7 +34,7 @@ export const createRoom = (socket: Socket, io: Server) => {
 
 // join room
 export const joinRoom = (socket: Socket, io: Server) => {
-    return ({ player_name, roomKey }: { player_name: string, roomKey: string }) => {
+    return ({ player_name, roomKey, password }: { player_name: string, roomKey: string, password: string }) => {
         try {
             const room = ROOMS_MAP.get(roomKey);
             if (!room) {
@@ -41,18 +42,22 @@ export const joinRoom = (socket: Socket, io: Server) => {
                 logger.warn({ roomKey }, "Room does not exist");
                 return;
             }
+            
+            if(password!==room.password){
+                socket.emit(socketEvents.ERROR,"Incorrect room password")
+                logger.warn({ roomKey }, "Incorrect room password");
+            }
 
-            // Check if username already exists in the room
             const nameExists = Object.values(room.players).some(
-                (player) => player.name === player_name
+                (player) => (player as Player).name === player_name
             );
+
             if (nameExists) {
                 socket.emit(socketEvents.ERROR, { err: "Username already exists in room" });
                 logger.warn({ player_name }, "Player name exists");
                 return;
             }
 
-            // Add new player
             const playerId = randomUUID();
             room.players[playerId] = {
                 name: player_name,

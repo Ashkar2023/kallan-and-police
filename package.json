@@ -2,14 +2,11 @@
     "name": "kallan-and-police",
     "version": "1.0.0",
     "scripts": {
-        "build:common":"cd packages/common && npm run build"
+        "build:common": "cd packages/common && npm run build"
     },
     "keywords": [],
     "author": "",
     "description": "",
-    "workspaces": [
-        "apps/*",
-        "packages/*"
-    ],
-    "private": true
+    "private": true,
+    "packageManager": "pnpm@10.12.4"
 }

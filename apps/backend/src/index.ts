@@ -27,3 +27,7 @@ const started = io.listen(envConfig.socketPort)
 if (started) {
     logger.info("server started @", envConfig.socketPort)
 }
+
+// process.on("unhandledRejection")
+// process.on("uncaughtException")
+// process.on("SIG")

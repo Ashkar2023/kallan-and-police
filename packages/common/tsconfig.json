@@ -1,15 +1,14 @@
 {
     "compilerOptions": {
-        "target": "es2016",
-        "module": "esnext",                  // Use ES module syntax
-        "moduleResolution": "node",          // Node-style module resolution
+        "target": "es2020",
+        "module": "nodenext",                  
+        "moduleResolution": "nodenext",         
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
         "skipLibCheck": true,
-        "outDir": "./dist",                  // Output directory for compiled files
-        "declaration": true,                 // Generate .d.ts files
-        "allowSyntheticDefaultImports": true // Allow default imports from modules with no default export
+        "outDir": "dist",                  // Output directory for compiled files
+        "declaration": true,
     },
     "include": ["src"],                    // Adjust as needed
     "exclude": ["node_modules", "dist"]

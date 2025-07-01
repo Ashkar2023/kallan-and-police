@@ -12,6 +12,7 @@
     "author": "",
     "description": "",
     "dependencies": {
+        "common": "workspace:*",
         "pino": "^9.7.0",
         "socket.io": "^4.8.1"
     },

@@ -1,35 +1,3 @@
-export enum socketEvents {
-    CREATE_ROOM = "CREATE_ROOM",
-    ROOM_INFO = "ROOM_INFO",
-
-    JOIN_ROOM = "JOIN_ROOM",
-    EXIT_ROOM = "EXIT_ROOM",
-
-    PLAYER_JOINED="PLAYER_JOINED",
-    PLAYER_IDLE="PLAYER_IDLE",
-    PLAYER_LEFT="PLAYER_LEFT",
-
-    ERROR="ERROR"
-}
-
-
-export enum gameEvents{
-    START_GAME = "START_GAME",
-    END_GAME = "END_GAME",
-    UPDATE_INFO = "UPDATE_INFO",
-    
-    DECLARE_DEATH = "DECLARE_DEATH",
-    
-    POLICE_GUESS = "POLICE_GUESS",
-    SPY_GUESS = "SPY_GUESS",
-    
-    JOIN_ALLEGIANCE = "JOIN_ALLEGIANCE"
-}
-
-export enum RoomStatus { "IDLE", "IN-PLAY", "END" } 
-export type Player = {
-    name: string;
-    total: number;
-    sid: string;
-    status: "READY" | "NOT_READY" | "IDLE" | "LEFT" ;
-}; 
+export * from "./types/player.types.js"
+export * from "./types/game.types.js"
+export * from "./constants/events.js"

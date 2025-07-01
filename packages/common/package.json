@@ -3,12 +3,17 @@
     "version": "1.0.0",
     "description": "",
     "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "type": "module",
     "scripts": {
         "build": "tsc"
     },
     "keywords": [],
     "author": "",
-    "license": "ISC"
+    "license": "ISC",
+    "exports": {
+        ".": "./dist/index.js"
+    },
+    "dependencies": {
+        "@types/node": "^22.15.34"
+    }
 }

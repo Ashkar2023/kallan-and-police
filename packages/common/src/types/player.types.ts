@@ -1,5 +1,12 @@
 import { UUID } from "node:crypto";
 
+export type Player = {
+    name: string;
+    total: number;
+    sid: string;
+    status: "READY" | "NOT_READY" | "IDLE" | "LEFT" ;
+};
+
 export type RoleLiterals = "kallan" | "police" | "minister" | "spy" | "civilian";
 
 export interface BaseRole {
