@@ -2,7 +2,7 @@
     "name": "kallan-and-police",
     "version": "1.0.0",
     "scripts": {
-        "build:common": "cd packages/common && npm run build"
+        "build:c-w": "pnpm -F common run build:w"
     },
     "keywords": [],
     "author": "",

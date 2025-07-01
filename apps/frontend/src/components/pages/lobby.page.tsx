@@ -5,17 +5,22 @@ import { useLocation } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useSocket } from "@/context/socket.context"
-import { socketEvents } from "common"
+import { socketEvents, gameEvents } from "common"
 
 export const Lobby = () => {
     const { state } = useLocation()
     const [players, setPlayers] = useState<string[]>([])
+    const [endGameResults, setEndGameResults] = useState<{name: string, score: number}[] | null>(null)
     const { socket } = useSocket()
 
     useEffect(() => {
         if (socket) {
-            socket.on(socketEvents.player_joined, (username: string) => {
+            socket.on(socketEvents.PLAYER_JOINED, (username: string) => {
                 setPlayers((prev) => [...prev, username])
+            })
+
+            socket.on(gameEvents.END_GAME, (data: { results: { name: string, score: number }[] }) => {
+                setEndGameResults(data.results)
             })
 
             // socket.on(socketEvents.player_left, (username: string) => {
@@ -30,6 +35,7 @@ export const Lobby = () => {
         return () => {
             if (socket) {
                 socket.off(socketEvents.player_joined)
+                socket.off(gameEvents.END_GAME)
             }
         }
     }, [socket, state.roomId])
@@ -40,6 +46,22 @@ export const Lobby = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-300 to-70% flex flex-col items-center justify-center p-4">
+            {endGameResults && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+                        <h2 className="text-2xl font-bold mb-4 text-center">Game Over</h2>
+                        <h3 className="text-lg font-semibold mb-2">Final Scores</h3>
+                        <ul className="space-y-2">
+                            {endGameResults.map((player, idx) => (
+                                <li key={idx} className="flex justify-between p-2 bg-gray-100 rounded">
+                                    <span>{player.name}</span>
+                                    <span className="font-bold">{player.score}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
             <Card className="w-full max-w-md">
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold text-center">Lobby</CardTitle>

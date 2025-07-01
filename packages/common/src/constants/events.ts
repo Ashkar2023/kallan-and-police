@@ -15,15 +15,22 @@ export enum socketEvents {
 
 export enum gameEvents{
     START_GAME = "START_GAME",
-    END_GAME = "END_GAME",
-    UPDATE_INFO = "UPDATE_INFO",
+
+    NEW_ROUND = "NEW_ROUND", // used for user input for generating new round and for server to send generated round
+    ROUND_END="ROUND_END",
+    BREAK="BREAK",
     
-    DECLARE_DEATH = "DECLARE_DEATH",
+    DEAD = "DEAD",
     
     POLICE_GUESS = "POLICE_GUESS",
     SPY_GUESS = "SPY_GUESS",
+    WINNER="WINNER",
     
-    JOIN_ALLEGIANCE = "JOIN_ALLEGIANCE"
+    JOIN_ALLEGIANCE = "JOIN_ALLEGIANCE",
+    ALLEGIANCE_RECEIVED = "ALLEGIANCE_RECEIVED",
+    
+    END_GAME = "END_GAME",
+    UPDATE_INFO = "UPDATE_INFO",
 }
 
 export enum RoomStatus { "IDLE", "IN-PLAY", "END" } 

@@ -18,3 +18,4 @@ export const passwordGen = async (): Promise<string> =>{
     const password:string = (await randomBytesAsync(3)).toString("hex");
     return password.toUpperCase()
 }
+

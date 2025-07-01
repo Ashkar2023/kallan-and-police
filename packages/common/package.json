@@ -5,7 +5,8 @@
     "main": "dist/index.js",
     "type": "module",
     "scripts": {
-        "build": "tsc"
+        "build": "tsc",
+        "build:w": "tsc -w"
     },
     "keywords": [],
     "author": "",

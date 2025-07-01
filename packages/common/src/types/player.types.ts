@@ -11,7 +11,8 @@ export type RoleLiterals = "kallan" | "police" | "minister" | "spy" | "civilian"
 
 export interface BaseRole {
     role: RoleLiterals;
-    alive: boolean;
+    dead: boolean;
+    score: number;
 }
 
 export interface Police extends BaseRole {
@@ -23,19 +24,25 @@ export interface Kallan extends BaseRole {
     kills: number
 }
 
+export type ministerFavor = Extract<RoleLiterals, "kallan" | "police"> | null;
+
 export interface Minister extends BaseRole {
     role: "minister"
-    favor: Extract<RoleLiterals, "kallan" | "police"> | null;
+    favor: ministerFavor;
 }
 
 export interface Spy extends BaseRole {
     role: "spy"
-    guess: number | null;
+    guess: UUID | null;
 }
 
-export type IRoles = BaseRole | Police | Kallan | Spy | Minister;
+export interface Civilian extends BaseRole {
+    role: "civilian"
+}
+
+export type IRoles =  Police | Kallan | Spy | Minister | Civilian ;
 
 export type RolesForRound = {
-    [playerId: UUID]: IRoles;
+    [playerId: UUID]: IRoles | null;
 };
 
