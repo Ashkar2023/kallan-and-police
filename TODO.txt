@@ -3,3 +3,4 @@ PWA
 
 app wise: 
     - qr code for joining a room
+    - cut based next round button to mark players ready. each player marking ready shows the button like windows old green loader, like a bricks stacked sideways

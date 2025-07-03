@@ -1,15 +1,15 @@
-import { gameEvents, ISocketData, ministerFavor, Player, RoomStatus, socketEvents } from "common";
-import { randomUUID, UUID } from "node:crypto";
-import { Server, Socket } from "socket.io";
-import { ROOMS, ROOMS_MAP } from "src/data/room.js";
-import { generateRoomId, passwordGen } from "src/utils/room-gen.utils.js";
-import logger from "src/utils/logger.js";
-import { genRound } from "src/logic/round.js";
-import { CivilianRole, KallanRole, MinisterRole, PoliceRole, SpyRole } from "src/entities/roles.model.js";
+import { RoomStatus, socketEvents, Player, ISocketData, gameEvents, ministerFavor, ServerToClientEvents, ClientToServerEvents, GameRoom, UpdatePlayerStatusData } from "common";
+import { randomUUID, UUID } from "crypto";
+import { Socket, Server } from "socket.io"
+import { ROOMS, ROOMS_MAP } from "../data/room.js";
+import { KallanRole, PoliceRole, CivilianRole, SpyRole, MinisterRole } from "../entities/roles.model.js";
+import { genRound } from "../logic/round.js";
+import logger from "../utils/logger.js";
+import { generateRoomId, passwordGen } from "../utils/room-gen.utils.js";
 
 // create room
 export const createRoom = (socket: Socket, io: Server) => {
-    return async ({ player_name }: { player_name: string }) => {
+    return async ({ player_name }: ClientToServerEvents["CREATE_ROOM"]) => {
         let roomKey: string = await generateRoomId(ROOMS);
 
         const playerId = randomUUID();
@@ -18,21 +18,31 @@ export const createRoom = (socket: Socket, io: Server) => {
         ROOMS_MAP.set(roomKey, {
             players: {
                 [playerId]: {
-                    name: player_name,
+                    name: player_name.toLowerCase(),
                     total: 0,
                     sid: socket.id,
                     status: "NOT_READY"
                 }
             },
+            host: playerId,
             password: await passwordGen(),
             rounds: [],
-            status: RoomStatus.IDLE,
+            status: RoomStatus.LOBBY,
         });
 
         let room = ROOMS_MAP.get(roomKey);
+        logger.info({
+            event: "CREATE_ROOM",
+            roomKey,
+            host: playerId,
+            player_name,
+            password: room?.password,
+            players: room?.players,
+            status: room?.status
+        }, "Room created successfully");
 
         socket.join(roomKey);
-        socket.emit(socketEvents.ROOM_INFO, { roomKey, players: room?.players });
+        socket.emit(socketEvents.ROOM_INFO, { roomKey, room, playerId } as ServerToClientEvents["ROOM_INFO"]);
     }
 }
 
@@ -40,48 +50,54 @@ export const createRoom = (socket: Socket, io: Server) => {
 export const joinRoom = (socket: Socket, io: Server) => {
     return ({ player_name, roomKey, password }: { player_name: string, roomKey: string, password: string }) => {
         try {
-            const room = ROOMS_MAP.get(roomKey);
+            const room = ROOMS_MAP.get(roomKey.toUpperCase());
             if (!room) {
-                socket.emit(socketEvents.ERROR, { err: "Room does not exist" });
-                logger.warn({ roomKey }, "Room does not exist");
+                socket.emit(socketEvents.ERROR, "Room does not exist");
+                logger.warn({ roomKey, room }, "Room does not exist");
                 return;
             }
 
-            if (password !== room.password) {
+            if (password.toUpperCase() !== room.password) {
                 socket.emit(socketEvents.ERROR, "Incorrect room password")
                 logger.warn({ roomKey }, "Incorrect room password");
+                return
             }
 
             const nameExists = Object.values(room.players).some(
-                (player) => (player as Player).name === player_name
+                (player) => {
+                    const playerName = (player as Player).name.toLowerCase()
+                    return player_name.toLowerCase() === playerName
+                }
             );
 
             if (nameExists) {
-                socket.emit(socketEvents.ERROR, { err: "Username already exists in room" });
+                socket.emit(socketEvents.ERROR, "Username already exists in room");
                 logger.warn({ player_name }, "Player name exists");
                 return;
             }
 
             const playerId = randomUUID();
             room.players[playerId] = {
-                name: player_name,
+                name: player_name.toLowerCase(),
                 total: 0,
                 sid: socket.id,
                 status: "NOT_READY"
             };
 
             socket.join(roomKey);
-            io.to(roomKey).emit(socketEvents.ROOM_INFO, { roomKey, room });
+
+            socket.to(roomKey).emit(socketEvents.PLAYER_JOINED, { roomKey, room, playerId } as ServerToClientEvents["PLAYER_JOINED"]);
+            socket.emit(socketEvents.ROOM_INFO, { roomKey, room, playerId } as ServerToClientEvents["ROOM_INFO"])
         } catch (error) {
-            socket.emit(socketEvents.ERROR, { err: "Failed to join room" });
+            socket.emit(socketEvents.ERROR, "Failed to join room");
             logger.error(error);
         }
     }
 }
 
 export const updatePlayerStatus = (socket: Socket, io: Server, disconnectReason?: string) => {
-    return ({ status, roomKey, playerId }: { status: Player["status"], roomKey: string, playerId: UUID }) => {
-
+    return (data: ClientToServerEvents["UPDATE_PLAYER_STATUS"]) => {
+        const { status, roomKey, playerId } = data;
         const room = ROOMS_MAP.get(roomKey);
         if (!room) return;
 
@@ -98,7 +114,8 @@ export const updatePlayerStatus = (socket: Socket, io: Server, disconnectReason?
             room.players[playerId].status = status;
         }
 
-        io.to(roomKey).emit(socketEvents.ROOM_INFO, { roomKey, room });
+        // Emit the same event and data back to the client
+        io.to(roomKey).emit(gameEvents.UPDATE_PLAYER_STATUS, data);
     }
 }
 
@@ -406,7 +423,8 @@ export const endGame = (socket: Socket, io: Server) => {
 export const attachGameListeners = (socket: Socket, io: Server) => {
     socket.on(socketEvents.CREATE_ROOM, createRoom(socket, io));
     socket.on(socketEvents.JOIN_ROOM, joinRoom(socket, io));
-
+    
+    socket.on(gameEvents.UPDATE_PLAYER_STATUS, updatePlayerStatus(socket, io));
     socket.on(gameEvents.START_GAME, startGame(socket, io));
     socket.on(gameEvents.END_GAME, endGame(socket, io));
     socket.on(gameEvents.NEW_ROUND, nextRound(socket, io));

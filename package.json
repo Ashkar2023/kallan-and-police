@@ -2,11 +2,17 @@
     "name": "kallan-and-police",
     "version": "1.0.0",
     "scripts": {
-        "build:c-w": "pnpm -F common run build:w"
+        "build:cw": "pnpm -F common run build:w",
+        "dev": "concurrently -i --prefix-colors \"blue,green\" --prefix \"[{name}]\" --names \"backend,frontend\" \"pnpm -F backend run dev\" \"pnpm -F frontend run dev\""
     },
     "keywords": [],
     "author": "",
     "description": "",
     "private": true,
-    "packageManager": "pnpm@10.12.4"
+    "packageManager": "pnpm@10.12.4",
+    "devDependencies": {
+        "@types/node": "^24.0.10",
+        "concurrently": "^9.2.0",
+        "typescript": "^5.8.3"
+    }
 }

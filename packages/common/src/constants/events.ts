@@ -5,32 +5,32 @@ export enum socketEvents {
     JOIN_ROOM = "JOIN_ROOM",
     EXIT_ROOM = "EXIT_ROOM",
 
-    PLAYER_JOINED="PLAYER_JOINED",
-    PLAYER_IDLE="PLAYER_IDLE",
-    PLAYER_LEFT="PLAYER_LEFT",
+    PLAYER_JOINED = "PLAYER_JOINED",
+    PLAYER_IDLE = "PLAYER_IDLE",
+    PLAYER_LEFT = "PLAYER_LEFT",
 
-    ERROR="ERROR"
+    ERROR = "ERROR"
 }
 
 
-export enum gameEvents{
+export enum gameEvents {
     START_GAME = "START_GAME",
 
     NEW_ROUND = "NEW_ROUND", // used for user input for generating new round and for server to send generated round
-    ROUND_END="ROUND_END",
-    BREAK="BREAK",
-    
+    ROUND_END = "ROUND_END",
+    BREAK = "BREAK",
+
     DEAD = "DEAD",
-    
+
     POLICE_GUESS = "POLICE_GUESS",
     SPY_GUESS = "SPY_GUESS",
-    WINNER="WINNER",
-    
+    WINNER = "WINNER",
+
     JOIN_ALLEGIANCE = "JOIN_ALLEGIANCE",
     ALLEGIANCE_RECEIVED = "ALLEGIANCE_RECEIVED",
-    
+
     END_GAME = "END_GAME",
-    UPDATE_INFO = "UPDATE_INFO",
+    UPDATE_PLAYER_STATUS = "UPDATE_PLAYER_STATUS",
 }
 
-export enum RoomStatus { "IDLE", "IN-PLAY", "END" } 
+export enum RoomStatus { "LOBBY", "LOADING", "BREAK", "IN-PLAY", "END" } 

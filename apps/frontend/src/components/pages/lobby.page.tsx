@@ -1,99 +1,152 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useLocation } from "react-router-dom"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { useSocket } from "@/context/socket.context"
-import { socketEvents, gameEvents } from "common"
+import { ClientToServerEvents, gameEvents, GameRoom, RoomStatus, ServerToClientEvents, socketEvents } from "common"
+import { UUID } from "crypto"
+import { useSocketContext } from "@/hooks/useSocket"
+import { useNavigate } from "react-router-dom"
+import { Check, DoorOpen } from "lucide-react";
+import clsx from "clsx"
 
 export const Lobby = () => {
-    const { state } = useLocation()
-    const [players, setPlayers] = useState<string[]>([])
-    const [endGameResults, setEndGameResults] = useState<{name: string, score: number}[] | null>(null)
-    const { socket } = useSocket()
+    const { socket, room, roomKey, playerId, host, setRoomKey, setRoom, setPlayerId } = useSocketContext()
+    const currentPlayer = room?.players[playerId as UUID];
+    const ready = currentPlayer?.status === "READY";
+    const navigate = useNavigate();
 
     useEffect(() => {
-        if (socket) {
-            socket.on(socketEvents.PLAYER_JOINED, (username: string) => {
-                setPlayers((prev) => [...prev, username])
+        if (!room) {
+            setRoomKey(null)
+            setPlayerId(null)
+            navigate("/join");
+        }
+    }, [room])
+
+    useEffect(() => {
+        const startGameHandler = () => {
+            setRoom(pr => {
+                if (!pr) return pr;
+
+                return {
+                    ...pr,
+                    status: RoomStatus.LOADING
+                }
             })
-
-            socket.on(gameEvents.END_GAME, (data: { results: { name: string, score: number }[] }) => {
-                setEndGameResults(data.results)
-            })
-
-            // socket.on(socketEvents.player_left, (username: string) => {
-            //     setPlayers((prev) => prev.filter((player) => player !== username))
-            // })
-
-            // socket.on(socketEvents.players_list, (playersList: string[]) => {
-            //     setPlayers(playersList)
-            // })
+            navigate("/game");
         }
 
+        const playerJoinedHandler = (data: ServerToClientEvents["PLAYER_JOINED"]) => {
+            setRoom(data.room);
+        }
+
+        const updatePlayerStatusHandler = (data: ServerToClientEvents["UPDATE_PLAYER_STATUS"]) => {
+
+            setRoom((prevRoom) => {
+                if (!prevRoom) return prevRoom;
+
+                return {
+                    ...prevRoom,
+                    players: {
+                        ...prevRoom.players,
+                        [data.playerId]: {
+                            ...prevRoom.players[data.playerId],
+                            status: data.status
+                        }
+                    },
+                };
+            });
+        }
+
+        if (socket) {
+            socket.on(socketEvents.PLAYER_JOINED, playerJoinedHandler)
+            socket.on(gameEvents.UPDATE_PLAYER_STATUS, updatePlayerStatusHandler)
+            socket.on(gameEvents.START_GAME, startGameHandler);
+        }
         return () => {
             if (socket) {
-                socket.off(socketEvents.player_joined)
-                socket.off(gameEvents.END_GAME)
+                socket.off(socketEvents.PLAYER_JOINED, playerJoinedHandler)
+                socket.off(gameEvents.UPDATE_PLAYER_STATUS, updatePlayerStatusHandler)
+                socket.off(gameEvents.START_GAME, startGameHandler);
             }
         }
-    }, [socket, state.roomId])
+    }, [socket, setRoom])
 
-    const handleStartGame = () => {
-        socket?.emit(socketEvents.start_game, state.roomId)
+    const handleToggleReady = () => {
+        if (!socket || !roomKey || !playerId) return;
+        const newStatus = currentPlayer?.status === "READY" ? "NOT_READY" : "READY";
+        const data: ClientToServerEvents["UPDATE_PLAYER_STATUS"] = {
+            status: newStatus,
+            roomKey,
+            playerId: playerId as UUID
+        };
+        socket.emit(gameEvents.UPDATE_PLAYER_STATUS, data);
     }
 
-    return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-300 to-70% flex flex-col items-center justify-center p-4">
-            {endGameResults && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
-                        <h2 className="text-2xl font-bold mb-4 text-center">Game Over</h2>
-                        <h3 className="text-lg font-semibold mb-2">Final Scores</h3>
-                        <ul className="space-y-2">
-                            {endGameResults.map((player, idx) => (
-                                <li key={idx} className="flex justify-between p-2 bg-gray-100 rounded">
-                                    <span>{player.name}</span>
-                                    <span className="font-bold">{player.score}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+    const handleStartGame = () => {
+        socket?.emit(gameEvents.START_GAME, { roomKey });
+    }
+
+    return room?.status === RoomStatus.LOADING ?
+        (
+            <div className="h-dvh w-full grid place-content-center bg-slate-200">
+                <h3 className="">Starting game<span className="animate-ellipsis inline-block w-1"></span></h3>
+            </div>
+        ):
+        (
+            <div className="flex flex-col h-dvh w-full bg-background">
+                {/* Top Bar */}
+                <div className="w-full bg-primary text-white py-2 px-4 flex justify-between items-center shadow">
+                    <span className="font-bold"><span className="text-slate-300 font-normal">Room ID:&nbsp;</span>{roomKey?.toUpperCase()}</span>
+                    {playerId === room?.host && (
+                        <span className="font-bold"><span className="text-slate-300 font-normal">Password:&nbsp;</span>{room.password?.toUpperCase()}</span>
+                    )}
                 </div>
-            )}
-            <Card className="w-full max-w-md">
-                <CardHeader>
-                    <CardTitle className="text-2xl font-bold text-center">Lobby</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <div className="text-center">
-                        <p className="text-lg font-semibold rounded bg-blue-300">{state.username}</p>
-                        <p className="text-xl bg-primary/10 rounded-md p-2 font-mono bg-slate-200">
-                            Room ID :&nbsp;
-                            {
-                                (state.roomId as string).match(/.{4}/g)?.join("-") || null
-                            }
-                        </p>
+                {/* Content */}
+                <div className="flex flex-col items-center justify-between max-w-[480px] w-full p-6 pb-2 gap-3 h-full mx-auto flex-grow">
+                    <div className="min-h-6 w-full">
+                        <Button className="aspect-square bg-yellow-500 float-right">
+                            <p>Leave</p>
+                            <DoorOpen />
+                        </Button>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">Players:</h3>
-                    <div className="overflow-y-scroll max-h-56">
-                        <ul className="space-y-2 text-center my-3">
-                            {players.map((player, index) => (
-                                <li key={index} className="bg-black/20 rounded-md p-2">
-                                    {player}
+                    <div className="relative w-full flex-grow overflow-y-auto px-1">
+                        <h4 className="text-sm font-extralight mb-1 w-full text-center text-foreground">Players</h4>
+                        <ul className="flex flex-col gap-2 py-1">
+                            {Object.keys(room?.players as GameRoom["players"]).map((pid) => (
+                                <li
+                                    key={pid}
+                                    className={
+                                        clsx(
+                                            "flex flex-row items-center justify-between bg-white/90 rounded-lg px-4 py-2 shadow border border-slate-200",
+                                            pid === playerId ? "outline outline-slate-400" : ""
+                                        )
+                                    }
+                                >
+                                    <span className="font-medium text-slate-800">{room?.players[pid as UUID].name} {pid === room?.host ? "🎙️" : ""}</span>
+                                    {room?.players[pid as UUID].status === "READY" ? (
+                                        <Check size={20} color="mediumseagreen" />
+                                    ) : (
+                                        <span className="ml-2 w-[22px] h-[22px]"></span>
+                                    )}
                                 </li>
                             ))}
                         </ul>
                     </div>
                     <Button
-                        className="w-full bg-green-500 hover:bg-green-600 text-white"
-                        onClick={(e)=>handleStartGame()}
+                        className={clsx("w-full mt-2", ready ? "bg-red-700 hover:bg-red-800" : "bg-green-700 hover:bg-green-800")}
+                        onClick={handleToggleReady}
                     >
-                        Start Game
+                        {ready ? "Unready" : "Mark Ready"}
                     </Button>
-                </CardContent>
-            </Card>
-        </div>
-    )
+                    {
+                        Object.entries(room!.players).every(([_, player]) => player.status === "READY") && playerId === host &&
+                        <Button
+                            className="w-full min-h-12 bg-primary hover:bg-primary/80"
+                            onClick={handleStartGame}
+                        >
+                            Start game
+                        </Button>
+                    }
+                </div>
+            </div>
+        )
 }

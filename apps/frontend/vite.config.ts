@@ -6,10 +6,11 @@ export default defineConfig({
     plugins: [react()],
     resolve: {
         alias: {
-            "@": path.resolve(__dirname,"./src"),
+            "@": path.resolve(__dirname, "./src"),
         }
     },
-    server:{
-        port:5511
+    server: {
+        port: 5511,
+        allowedHosts: true //["amazing-sawfly-right.ngrok-free.app"]
     }
 })

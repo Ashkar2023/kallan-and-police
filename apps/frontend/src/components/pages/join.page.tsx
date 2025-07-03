@@ -1,139 +1,148 @@
-"use client"
-
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { useSocket } from "@/context/socket.context"
-import { type IRoom, type IUserInfo, socketEvents } from "common"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
+import { ClientToServerEvents, ServerToClientEvents, socketEvents } from "common"
 import { toast } from "sonner"
 import { useNavigate } from "react-router-dom"
+import { Input } from "../ui/input"
+import logoPng from "../../assets/images/tmkp.logo.webp";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
+import { UUID } from "crypto"
+import { useSocketContext } from "@/hooks/useSocket"
 
 export const JoinPage = () => {
-    const { socket } = useSocket()
+    const { socket, setRoom, setPlayerId, setName, setRoomKey, setHost } = useSocketContext()
     const navigate = useNavigate();
 
-    const [roomCode, setRoomCode] = useState("")
-    const [username, setUsername] = useState("")
-    const [isJoining, setIsJoining] = useState(true)
-    const [maxUsers, setMaxUsers] = useState(10)
-    const [thiefAmount, setThiefAmount] = useState(1)
+    const [username, setUsername] = useState("");
+    const [roomId, setRoomId] = useState("");
+    const [roomPassword, setRoomPassword] = useState("");
 
+    useEffect(() => {
+        const handleError = (message: string) => {
+            toast.error(message);
+            return
+        };
+        const handleRoomInfo = (data: ServerToClientEvents["ROOM_INFO"]) => {
+            setRoom(data.room);
+            setPlayerId(data.playerId);
+            setRoomPassword(data.roomKey)
+            setHost(data.room.host as UUID)
+            setRoomKey(data.roomKey)
+            setName(username)
+            navigate("/lobby");
+        };
 
-    const handleCreateRoom = () => {
-        socket?.emit(socketEvents.create_room,
-            {
-                username,
-                config: {
-                    maxUsers,
-                    thiefAmount,
-                },
-            } as {
-                username: string
-                config: IRoom["config"]
-            },
-            (response: any) => {
-                navigate("/lobby",{
-                    state:{
-                        roomId:response.roomId,
-                        username
-                    }
-                })
-                toast(response.status);
-            }
-        )
-    }
+        socket?.on(socketEvents.ERROR, handleError);
+        socket?.on(socketEvents.ROOM_INFO, handleRoomInfo);
+
+        return () => {
+            socket?.off(socketEvents.ERROR, handleError);
+            socket?.off(socketEvents.ROOM_INFO, handleRoomInfo);
+        };
+    }, [socket]);
 
     const handleJoinRoom = () => {
-        socket?.emit(socketEvents.join_room, {
-            roomID: roomCode,
-            username,
-        } as IUserInfo)
+        const trimmedRoomId = roomId.trim();
+        const trimmedRoomPassword = roomPassword.trim();
+        const trimmedUsername = username.trim();
+
+        if (trimmedRoomId.length !== 6) {
+            toast.error("Room ID must be 6 characters long");
+            return;
+        }
+        if (trimmedRoomPassword.length !== 4) {
+            toast.error("Room password must be 4 characters long");
+            return;
+        }
+        if (trimmedUsername.length < 3) {
+            toast.error("Username must be 3 characters long");
+            return;
+        }
+        socket?.emit(socketEvents.JOIN_ROOM, {
+            player_name: username,
+            password: trimmedRoomPassword,
+            roomKey: trimmedRoomId
+        } as ClientToServerEvents["JOIN_ROOM"])
     }
 
-    const handleSubmit = () => {
-        if (isJoining) {
-            handleJoinRoom()
-        } else {
-            handleCreateRoom()
-        }
+    const createRoom = () => {
+        socket?.emit(socketEvents.CREATE_ROOM, {
+            player_name: username
+        } as ClientToServerEvents["CREATE_ROOM"])
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-300 to-70% flex flex-col items-center justify-center p-4">
-            <header className="mb-8 text-center">
-                <h4 className="text-2xl font-thin text-primary-foreground mb-2">The modern</h4>
-                {/* <h1 className="text-4xl font-extrabold mb-2">കള്ളനും പോലീസും</h1> */}
-            </header>
-
-            <main className="w-full max-w-md">
-                <div className="bg-card rounded-lg shadow-xl overflow-hidden">
-                    <div className="relative h-48 overflow-hidden">
-                        <img
-                            src="https://c8.alamy.com/comp/E6N0EM/3d-white-people-police-arresting-a-thief-isolated-white-background-E6N0EM.jpg"
-                            alt="Police arresting a thief"
-                            className="h-full w-full object-cover object-top"
-                        />
-                    </div>
-                    <div className="p-6 space-y-4">
-                        <Input
-                            type="text"
-                            placeholder="Enter username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className="w-full"
-                        />
-                        <div className="flex items-center space-x-2">
-                            <Switch id="room-toggle" checked={isJoining} onCheckedChange={setIsJoining} />
-                            <Label htmlFor="room-toggle">{isJoining ? "Join Room" : "Create Room"}</Label>
-                        </div>
-                        {isJoining ? (
+        <div className="flex items-center justify-center h-dvh w-full bg-background to-70%">
+            <div className="flex flex-col items-center justify-between max-w-[480px] w-full p-6 pb-2 gap-8 h-full">
+                {/* Logo */}
+                <div className="flex flex-col items-center w-full">
+                    <img
+                        src={logoPng}
+                        alt="Police arresting a thief"
+                        className="w-8/12 object-cover drop-shadow-xl"
+                    />
+                </div>
+                {/* Form */}
+                <Tabs className="w-full h-full flex flex-col" defaultValue="join">
+                    <TabsList className="w-max self-center mb-4">
+                        <TabsTrigger value="join" className="data-[state=active]:bg-primary data-[state=active]:text-white">Join room</TabsTrigger>
+                        <TabsTrigger value="create" className="data-[state=active]:bg-primary data-[state=active]:text-white">Create room</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="join">
+                        <form className="flex flex-col w-full gap-4 items-center text-slate-400" onSubmit={e => { e.preventDefault(); handleJoinRoom(); }}>
                             <Input
                                 type="text"
-                                placeholder="Enter room code"
-                                value={roomCode}
-                                onChange={(e) => setRoomCode(e.target.value)}
-                                className="w-full"
+                                placeholder="Room ID"
+                                value={roomId}
+                                onChange={(e) => setRoomId(e.target.value)}
+                                className="w-full rounded-lg"
+                                spellCheck={false}
                             />
-                        ) : (
-                            <>
-                                <div className="space-y-2">
-                                    <Label htmlFor="max-users">Max Users: {maxUsers}</Label>
-                                    <Slider
-                                        id="max-users"
-                                        min={2}
-                                        max={25}
-                                        step={1}
-                                        value={[maxUsers]}
-                                        onValueChange={(value) => setMaxUsers(value[0])}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="thief-amount">Thief Amount: {thiefAmount}</Label>
-                                    <Slider
-                                        id="thief-amount"
-                                        min={1}
-                                        max={Math.max(1, Math.floor(maxUsers / 6))}
-                                        step={1}
-                                        value={[thiefAmount]}
-                                        onValueChange={(value) => setThiefAmount(value[0])}
-                                    />
-                                </div>
-                            </>
-                        )}
+                            <Input
+                                type="text"
+                                placeholder="Password"
+                                value={roomPassword}
+                                onChange={(e) => setRoomPassword(e.target.value)}
+                                className="w-full rounded-lg"
+                                spellCheck={false}
+                            />
+                            <Input
+                                type="text"
+                                placeholder="Username"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                className="w-full rounded-lg"
+                                spellCheck={false}
+                            />
+                            <Button
+                                className={`w-full button-primary`}
+                                type="submit"
+                            >
+                                Join
+                            </Button>
+                        </form>
+                    </TabsContent>
+                    <TabsContent value="create" className="text-slate-400">
+                        <Input
+                            type="text"
+                            placeholder="Username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            className="w-full rounded-lg"
+                            spellCheck={false}
+                        />
                         <Button
-                            className={`w-full text-white ${isJoining ? "bg-blue-500 hover:bg-blue-600" : "bg-green-500 hover:bg-green-600"}`}
-                            onClick={handleSubmit}
+                            className={`w-full button-primary mt-4`}
+                            type="button"
+                            onClick={createRoom}
                         >
-                            {isJoining ? "Join Room" : "Create Room"}
+                            Create
                         </Button>
-                    </div>
-                </div>
-            </main>
-
-            <footer className="mt-8 text-primary-foreground/80 text-sm">© Ashkar All rights reserved.</footer>
+                    </TabsContent>
+                </Tabs>
+                {/* Footer */}
+                <footer className="text-xs text-slate-400 text-center w-full">© ashkar.dev All rights reserved.</footer>
+            </div>
         </div>
     )
 }

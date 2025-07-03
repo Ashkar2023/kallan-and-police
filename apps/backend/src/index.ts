@@ -1,7 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { envConfig } from './config/env.js';
 import { createServer } from 'node:http';
-import { gameEvents, socketEvents } from "common";
 import { attachGameListeners } from './controllers/game.controllers.js';
 import logger from './utils/logger.js';
 
@@ -19,11 +18,10 @@ io.on('connection', (socket: Socket) => {
     });
 });
 
-const started = io.listen(envConfig.socketPort)
-
-if (started) {
-    logger.info("server started @", envConfig.socketPort)
-}
+const PORT = envConfig.socketPort || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    logger.info(`Socket.IO server started at http://0.0.0.0:${PORT}`);
+});
 
 // process.on("unhandledRejection")
 // process.on("uncaughtException")

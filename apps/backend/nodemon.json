@@ -1,0 +1,19 @@
+{
+    "restartable": "rs",
+    "ignore": [
+        ".git",
+        "node_modules/**/node_modules"
+    ],
+    "verbose": false,
+    "exec":"pnpm run build && node --env-file=.env dist/index.js",
+    "execMap": {},
+    "watch": [
+        "src/",
+        "./*.json",
+        ".env"
+    ],
+    "env": {
+        "NODE_ENV": "development"
+    },
+    "ext": "ts,json"
+}

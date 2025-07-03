@@ -1,1 +1,0 @@
-export type ISocketData<T extends Record<string, any> = {}> = { roomKey: string } & T;

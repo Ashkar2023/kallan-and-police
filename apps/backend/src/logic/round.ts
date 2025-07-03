@@ -1,7 +1,7 @@
 import { GameRoom, IRoles, RolesForRound, Round } from "common";
 import { UUID } from "node:crypto";
-import { CivilianRole, KallanRole, MinisterRole, PoliceRole, SpyRole } from "src/entities/roles.model.js";
-import { generateRoles, getRoleCounts } from "src/utils/round-gen.utils.js";
+import { CivilianRole, KallanRole, MinisterRole, PoliceRole, SpyRole } from "../entities/roles.model.js";
+import { generateRoles, getRoleCounts } from "../utils/round-gen.utils.js";
 
 
 export const genRound = (room: GameRoom): Round | never => {

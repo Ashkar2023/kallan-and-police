@@ -16,6 +16,10 @@ export const router: RouteObject = {
         {
             path: '/lobby',
             element: <Lobby />
+        },
+        {
+            // path: '/game',
+            // element: <GamePage />
         }
     ]
 }

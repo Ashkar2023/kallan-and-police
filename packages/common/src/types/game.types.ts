@@ -1,5 +1,5 @@
 import { UUID } from "node:crypto";
-import { Kallan, Player, Police, RoleLiterals, RolesForRound } from "./player.types.js";
+import { Player, RoleLiterals, RolesForRound } from "./player.types.js";
 import { RoomStatus } from "../constants/events.js";
 
 export interface GameRoom {
@@ -7,6 +7,7 @@ export interface GameRoom {
     players: Record<UUID, Player>;
     status: RoomStatus;
     password: string;
+    host: UUID
 }
 
 export type RoundStatus = "ACTIVE" | "END";
