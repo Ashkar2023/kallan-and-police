@@ -1,1 +1,3 @@
-// This
+export const GamePage = () => {
+    return 
+}

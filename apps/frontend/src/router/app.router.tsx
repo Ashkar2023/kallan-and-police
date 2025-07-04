@@ -1,3 +1,4 @@
+import { GamePage } from "@/components/pages/game.page";
 import { JoinPage } from "@/components/pages/join.page";
 import { Lobby } from "@/components/pages/lobby.page";
 import { Navigate, RouteObject } from "react-router-dom";
@@ -18,8 +19,8 @@ export const router: RouteObject = {
             element: <Lobby />
         },
         {
-            // path: '/game',
-            // element: <GamePage />
+            path: '/game',
+            element: <GamePage />
         }
     ]
 }

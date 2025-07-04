@@ -6,11 +6,14 @@ import { useNavigate } from "react-router-dom"
 import { Input } from "../ui/input"
 import logoPng from "../../assets/images/tmkp.logo.webp";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
-import { UUID } from "crypto"
 import { useSocketContext } from "@/hooks/useSocket"
+import { useSetAtom } from "jotai/react"
+import { $gameRoom, $playerdData } from "@/atoms/global.atoms"
 
 export const JoinPage = () => {
-    const { socket, setRoom, setPlayerId, setName, setRoomKey, setHost } = useSocketContext()
+    const { socket } = useSocketContext();
+    const setGameRoom = useSetAtom($gameRoom);
+    const setPlayerData = useSetAtom($playerdData);
     const navigate = useNavigate();
 
     const [username, setUsername] = useState("");
@@ -23,12 +26,15 @@ export const JoinPage = () => {
             return
         };
         const handleRoomInfo = (data: ServerToClientEvents["ROOM_INFO"]) => {
-            setRoom(data.room);
-            setPlayerId(data.playerId);
-            setRoomPassword(data.roomKey)
-            setHost(data.room.host as UUID)
-            setRoomKey(data.roomKey)
-            setName(username)
+            setGameRoom(data.room)
+
+            setPlayerData({
+                playerId: data.playerId,
+                sid: data.room.players[data.playerId].sid,
+                name: data.room.players[data.playerId].name
+            })
+
+            setRoomPassword(data.roomId)
             navigate("/lobby");
         };
 
@@ -61,7 +67,7 @@ export const JoinPage = () => {
         socket?.emit(socketEvents.JOIN_ROOM, {
             player_name: username,
             password: trimmedRoomPassword,
-            roomKey: trimmedRoomId
+            roomId: trimmedRoomId
         } as ClientToServerEvents["JOIN_ROOM"])
     }
 
