@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "scripts": {
         "build:cw": "pnpm -F common run build:w",
-        "dev": "concurrently -i --prefix-colors \"blue,green\" --prefix \"[{name}]\" --names \"backend,frontend\" \"pnpm -F backend run dev\" \"pnpm -F frontend run dev\""
+        "dev": "concurrently -i --prefix-colors \"magenta,green,blue\" --prefix \"[{name}]\" --names \"backend,frontend,tsc\" \"pnpm -F backend run dev\" \"pnpm -F frontend run dev\" \"pnpm run build:cw\""
     },
     "keywords": [],
     "author": "",

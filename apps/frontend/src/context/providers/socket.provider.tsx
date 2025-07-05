@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { io, Socket } from "socket.io-client";
 import { SocketContext } from "../socket.context";
+import { socketEvents } from "common";
+import { toast } from "sonner";
 
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -18,20 +20,27 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
         );
 
+        const handleError = (message: string) => {
+            toast.error(message);
+            return
+        };
+
+        newSocket.on(socketEvents.ERROR, handleError);
+        
         newSocket.on("connect", () => {
             setSocket(newSocket);
             setConnected(newSocket.connected);
         })
-
+        
         newSocket.on("disconnect", () => {
             setSocket(null);
             setConnected(newSocket.connected);
         })
-
+        
         newSocket.on("connect_error", () => {
             setConnected(newSocket.connected);
         })
-
+        
         return () => {
             newSocket.removeAllListeners();
             newSocket.close();

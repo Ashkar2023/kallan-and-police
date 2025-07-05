@@ -8,6 +8,7 @@ export enum socketEvents {
     PLAYER_JOINED = "PLAYER_JOINED",
     PLAYER_IDLE = "PLAYER_IDLE",
     PLAYER_LEFT = "PLAYER_LEFT",
+    CLEAN_UP = "CLEAN_UP",
 
     ERROR = "ERROR"
 }
@@ -33,4 +34,4 @@ export enum gameEvents {
     UPDATE_PLAYER_STATUS = "UPDATE_PLAYER_STATUS",
 }
 
-export enum RoomStatus { "LOBBY", "LOADING", "BREAK", "IN-PLAY", "END" } 
+export enum RoomStatus { "JOINING", "LOBBY", "LOADING", "IN-PLAY", "BREAK", "END" } 

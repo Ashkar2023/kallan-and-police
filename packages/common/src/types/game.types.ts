@@ -3,11 +3,12 @@ import { Player, RoleLiterals, RolesForRound } from "./player.types.js";
 import { RoomStatus } from "../constants/events.js";
 
 export interface GameRoom {
+    roomId: string;
     rounds: Round[];
     players: Record<UUID, Player>;
     status: RoomStatus;
     password: string;
-    host: UUID
+    host: UUID;
 }
 
 export type RoundStatus = "ACTIVE" | "END";

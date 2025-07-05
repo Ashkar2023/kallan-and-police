@@ -14,8 +14,8 @@ export const generateRoomId = async (rooms: Set<string>): Promise<string> => {
     return roomKey;
 };
 
-export const passwordGen = async (): Promise<string> =>{
-    const password:string = (await randomBytesAsync(2)).toString("hex");
-    return password.toUpperCase()
+export const passwordGen = async (): Promise<string> => {
+    const password: string = Math.floor(Math.random() * 100).toString().padStart(2,"0");
+    return password
 }
 

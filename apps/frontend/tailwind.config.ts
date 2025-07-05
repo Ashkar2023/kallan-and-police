@@ -20,13 +20,13 @@ export default {
                 "sans": ["Sora", '"Inter"', "system-ui", 'Arial',"sans-serif"]
             },
             colors: {
-                background: "#1e293b",        // slate-800
-                foreground: "#f1f5f9",        // slate-100
+                background: "#181818",
+                foreground: "#f1f5f9",        
 
-                card: "#334155",              // slate-700
-                cardForeground: "#f8fafc",    // slate-50
+                card: "#1f1f1f",              
+                cardForeground: "#f8fafc",    
 
-                primary: "#3b82f6",           // blue-500
+                primary: "#798891",           
                 primaryForeground: "#ffffff",
             },
             boxShadow: {

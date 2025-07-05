@@ -18,11 +18,11 @@ export const _$InitPlayerData: playerData = {
     sid: ""
 }
 
-export const $gameRoom = atomWithStorage('room',
-    _$InitGameRoom,
+export const $gameRoom = atomWithStorage<GameRoom | null>('room',
+    null,
     undefined,
     {
         getOnInit: true
     }
 );
-export const $playerdData = atomWithStorage("playerData", _$InitPlayerData, undefined, { getOnInit: true })
+export const $playerdData = atomWithStorage<playerData | null>("playerData", null, undefined, { getOnInit: true })

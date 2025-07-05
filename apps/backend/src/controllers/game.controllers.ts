@@ -1,7 +1,7 @@
 import { RoomStatus, socketEvents, Player, ISocketData, gameEvents, ministerFavor, ServerToClientEvents, ClientToServerEvents, GameRoom, UpdatePlayerStatusData } from "common";
 import { randomUUID, UUID } from "crypto";
 import { Socket, Server } from "socket.io"
-import { ROOMS, ROOMS_MAP } from "../data/room.js";
+import { ROOMS, ROOMS_EXPIRY_TRACKER, ROOMS_MAP } from "../data/room.js";
 import { KallanRole, PoliceRole, CivilianRole, SpyRole, MinisterRole } from "../entities/roles.model.js";
 import { genRound } from "../logic/round.js";
 import logger from "../utils/logger.js";
@@ -10,12 +10,14 @@ import { generateRoomId, passwordGen } from "../utils/room-gen.utils.js";
 // create room
 export const createRoom = (socket: Socket, io: Server) => {
     return async ({ player_name }: ClientToServerEvents["CREATE_ROOM"]) => {
-        let roomKey: string = await generateRoomId(ROOMS);
+        let roomId: string = await generateRoomId(ROOMS);
 
         const playerId = randomUUID();
         socket.data.playerId = playerId;
+        socket.data.roomId = roomId;
 
-        ROOMS_MAP.set(roomKey, {
+
+        let room = ROOMS_MAP.set(roomId, {
             players: {
                 [playerId]: {
                     name: player_name.toLowerCase(),
@@ -28,12 +30,15 @@ export const createRoom = (socket: Socket, io: Server) => {
             password: await passwordGen(),
             rounds: [],
             status: RoomStatus.LOBBY,
-        });
+            roomId
+        })
+            .get(roomId);
 
-        let room = ROOMS_MAP.get(roomKey);
+        ROOMS_EXPIRY_TRACKER[roomId] = Date.now() * 5 * 60 * 1000;
+
         logger.info({
             event: "CREATE_ROOM",
-            roomKey,
+            roomId: roomId,
             host: playerId,
             player_name,
             password: room?.password,
@@ -41,25 +46,25 @@ export const createRoom = (socket: Socket, io: Server) => {
             status: room?.status
         }, "Room created successfully");
 
-        socket.join(roomKey);
-        socket.emit(socketEvents.ROOM_INFO, { roomKey, room, playerId } as ServerToClientEvents["ROOM_INFO"]);
+        socket.join(roomId);
+        socket.emit(socketEvents.ROOM_INFO, { roomId, room, playerId } as ServerToClientEvents["ROOM_INFO"]);
     }
 }
 
 // join room
 export const joinRoom = (socket: Socket, io: Server) => {
-    return ({ player_name, roomKey, password }: { player_name: string, roomKey: string, password: string }) => {
+    return ({ player_name, roomId, password }: { player_name: string, roomId: string, password: string }) => {
         try {
-            const room = ROOMS_MAP.get(roomKey.toUpperCase());
+            const room = ROOMS_MAP.get(roomId.toUpperCase());
             if (!room) {
                 socket.emit(socketEvents.ERROR, "Room does not exist");
-                logger.warn({ roomKey, room }, "Room does not exist");
+                logger.warn({ roomId, room }, "Room does not exist");
                 return;
             }
 
             if (password.toUpperCase() !== room.password) {
                 socket.emit(socketEvents.ERROR, "Incorrect room password")
-                logger.warn({ roomKey }, "Incorrect room password");
+                logger.warn({ roomId }, "Incorrect room password");
                 return
             }
 
@@ -84,10 +89,10 @@ export const joinRoom = (socket: Socket, io: Server) => {
                 status: "NOT_READY"
             };
 
-            socket.join(roomKey);
+            socket.join(roomId);
 
-            socket.to(roomKey).emit(socketEvents.PLAYER_JOINED, { roomKey, room, playerId } as ServerToClientEvents["PLAYER_JOINED"]);
-            socket.emit(socketEvents.ROOM_INFO, { roomKey, room, playerId } as ServerToClientEvents["ROOM_INFO"])
+            socket.to(roomId).emit(socketEvents.PLAYER_JOINED, { roomId, room, playerId } as ServerToClientEvents["PLAYER_JOINED"]);
+            socket.emit(socketEvents.ROOM_INFO, { roomId, room, playerId } as ServerToClientEvents["ROOM_INFO"])
         } catch (error) {
             socket.emit(socketEvents.ERROR, "Failed to join room");
             logger.error(error);
@@ -97,32 +102,74 @@ export const joinRoom = (socket: Socket, io: Server) => {
 
 export const updatePlayerStatus = (socket: Socket, io: Server, disconnectReason?: string) => {
     return (data: ClientToServerEvents["UPDATE_PLAYER_STATUS"]) => {
-        const { status, roomKey, playerId } = data;
-        const room = ROOMS_MAP.get(roomKey);
+        const { status, roomId, playerId } = data;
+        const room = ROOMS_MAP.get(roomId);
+
+        logger.info({ status, roomId, playerId }, "Incoming UPDATE_PLAYER_STATUS")
         if (!room) return;
 
-        // If player leaves before the game starts (i.e, no rounds), remove them completely
-        if (status === "LEFT") {
-            if (room.rounds.length === 0) {
-                delete room.players[playerId];
-                delete socket.data.playerId
-            } else {
-                room.players[playerId].status = "LEFT";
-                delete socket.data.playerId
-            }
+        room.players[playerId].status = status;
+
+        /** 
+         *  Handle IDLE player logic
+         *  if reconnect successful, replace the sid and update room_info
+         */
+
+        io.to(roomId).emit(gameEvents.UPDATE_PLAYER_STATUS, data);
+    }
+}
+
+export const exitRoom = (socket: Socket, io: Server) => {
+    return (data: ClientToServerEvents["EXIT_ROOM"], callback: Function) => {
+        const { roomId, playerId } = data;
+        const room = ROOMS_MAP.get(roomId);
+
+        logger.info({ roomId, playerId, room }, "Incoming EXIT_ROOM")
+        if (!room) return callback(true);
+
+        let players = room.players
+        let playerIds = Object.keys(room.players)
+
+        if (playerIds.every(pid => pid === playerId)) {
+            ROOMS_MAP.delete(roomId);
+            ROOMS.delete(roomId);
+            delete ROOMS_EXPIRY_TRACKER[roomId];
+            return callback(true);
         } else {
-            room.players[playerId].status = status;
+            if (room.rounds.length === 0) {
+                delete players[playerId];
+                delete socket.data.playerId;
+                delete socket.data.roomId;
+            } else {
+                players[playerId].status = "LEFT";
+                delete socket.data.playerId
+                delete socket.data.roomId;
+            }
+
+            if (playerId === room.host) {
+                for (let pid of Object.keys(room.players)) {
+                    if (pid !== room.host && room.players[pid as UUID].status !== "LEFT") {
+                        room.host = pid as UUID;
+                        break;
+                    }
+                }
+            }
         }
 
-        // Emit the same event and data back to the client
-        io.to(roomKey).emit(gameEvents.UPDATE_PLAYER_STATUS, data);
+        callback(true)
+
+        io.to(roomId).emit(socketEvents.PLAYER_LEFT, room);
     }
 }
 
 // start game
 export const startGame = (socket: Socket, io: Server) => {
-    return ({ roomKey }: ISocketData) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId }: ISocketData) => {
+        const room = ROOMS_MAP.get(roomId);
+        if (!room) {
+            socket.emit(socketEvents.ERROR, "Room not found")
+            return
+        }
 
         if (Object.keys(room?.players as Record<string, Player>).length < 4) {
             socket.emit(socketEvents.ERROR, "Not enough players")
@@ -136,26 +183,34 @@ export const startGame = (socket: Socket, io: Server) => {
                 allReady = false;
                 break;
             }
+        }
 
-            io.emit(gameEvents.START_GAME, { message: "generating round" });
+        if (!allReady) {
+            socket.emit(socketEvents.ERROR, "Players not ready")
+            return
+        }
 
+        io.emit(gameEvents.START_GAME);
+
+        try {
             let round = genRound(room);
             room.rounds.push(round);
 
             setTimeout(() => {
-                io.emit(gameEvents.NEW_ROUND, { roomKey, room })
+                io.emit(gameEvents.NEW_ROUND, { roomId, room })
             }, 2000)
-            return
+        } catch (error) {
+            const message = "Error while generating new round";
+            socket.emit(socketEvents.ERROR, message)
+            logger.error({ ...error as Error, room }, message);
         }
-
-        socket.emit(socketEvents.ERROR, "Players not ready")
     }
 }
 
 // round end, return with round & total info, 
 // called by another controller, not directly from socket event
-export const endRound = (io: Server, roomKey: string) => {
-    const room = ROOMS_MAP.get(roomKey);
+export const endRound = (io: Server, roomId: string) => {
+    const room = ROOMS_MAP.get(roomId);
     if (!room) {
         logger.error("Room not found")
         return
@@ -206,20 +261,19 @@ export const endRound = (io: Server, roomKey: string) => {
 
     const players = room.players;
     for (let pid in players) {
-
         if (players[pid as UUID].status !== "LEFT") {
             players[pid as UUID].total += round.roles[pid as UUID]?.score ?? 0
         }
     }
 
-    return io.emit(gameEvents.ROUND_END, { roomKey, room });
+    return io.emit(gameEvents.ROUND_END, { roomId, room });
 }
 
 
 // nextRound
 export const nextRound = (socket: Socket, io: Server) => {
-    return ({ roomKey }: ISocketData) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId }: ISocketData) => {
+        const room = ROOMS_MAP.get(roomId);
         if (!room) return;
 
         let lastRound = room.rounds[room.rounds.length - 1];
@@ -230,20 +284,20 @@ export const nextRound = (socket: Socket, io: Server) => {
         const round = genRound(room);
         room.rounds.push(round);
 
-        io.to(roomKey).emit(gameEvents.NEW_ROUND, { roomKey, room });
+        io.to(roomId).emit(gameEvents.NEW_ROUND, { roomId, room });
     }
 }
 
 // declare-death
 export const declareDead = (socket: Socket, io: Server) => {
-    return ({ roomKey }: ISocketData) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId }: ISocketData) => {
+        const room = ROOMS_MAP.get(roomId);
         if (!room) return
         const round = room?.rounds[room.rounds.length - 1]
         if (!round) return
 
         const playerId = socket.data.playerId;
-        if (playerId in round.roles && !round.roles[playerId]?.dead === false) {
+        if (playerId in round.roles && round.roles[playerId]?.dead === false) {
             round.roles[playerId].dead = true;
         }
 
@@ -264,31 +318,31 @@ export const declareDead = (socket: Socket, io: Server) => {
             round.winner = "kallan";
             round.status = "END"
 
-            io.to(roomKey).emit(gameEvents.WINNER, {
-                roomKey,
+            io.to(roomId).emit(gameEvents.WINNER, {
+                roomId,
                 winner: "kallan",
                 wid: playerId,
                 message: "Kallan wins the round"
             });
-            endRound(io, roomKey);
+            endRound(io, roomId);
         }
 
-        io.to(roomKey).emit(gameEvents.DEAD, { player: socket.data.playerId })
+        io.to(roomId).emit(gameEvents.DEAD, { player: socket.data.playerId })
     }
 }
 
 // spy-guess
 export const spyGuess = (socket: Socket, io: Server) => {
-    return ({ roomKey, targetPlayerId }: { roomKey: string, targetPlayerId: UUID }) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId, targetPlayerId }: { roomId: string, targetPlayerId: UUID }) => {
+        const room = ROOMS_MAP.get(roomId);
         if (!room) {
-            logger.warn({ roomKey, event: gameEvents.SPY_GUESS }, "Room does not exist for spy guess");
+            logger.warn({ roomId, event: gameEvents.SPY_GUESS }, "Room does not exist for spy guess");
             return;
         }
 
         const currentRound = room.rounds[room.rounds.length - 1];
         if (currentRound.status === "END") {
-            logger.warn({ roomKey, event: gameEvents.SPY_GUESS }, "No active round for spy guess");
+            logger.warn({ roomId, event: gameEvents.SPY_GUESS }, "No active round for spy guess");
             return;
         }
 
@@ -297,31 +351,31 @@ export const spyGuess = (socket: Socket, io: Server) => {
 
         // Check if player is spy
         if (!playerRole || playerRole.role !== "spy") {
-            logger.warn({ playerId, roomKey, event: gameEvents.SPY_GUESS }, "Player is not a spy");
+            logger.warn({ playerId, roomId, event: gameEvents.SPY_GUESS }, "Player is not a spy");
             return;
         }
 
         // Store the spy's guess in their role object
         playerRole.guess = targetPlayerId;
 
-        logger.info({ spyId: playerId, targetId: targetPlayerId, roomKey }, "Spy made a guess");
+        logger.info({ spyId: playerId, targetId: targetPlayerId, roomId }, "Spy made a guess");
 
-        socket.emit(gameEvents.SPY_GUESS, { roomKey, spyId: playerId, message: "guess recorded" });
+        socket.emit(gameEvents.SPY_GUESS, { roomId, spyId: playerId, message: "guess recorded" });
     }
 }
 
 // police-guess
 export const policeGuess = (socket: Socket, io: Server) => {
-    return ({ roomKey, targetPlayerId }: { roomKey: string, targetPlayerId: UUID }) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId, targetPlayerId }: { roomId: string, targetPlayerId: UUID }) => {
+        const room = ROOMS_MAP.get(roomId);
         if (!room) {
-            logger.warn({ roomKey, event: gameEvents.POLICE_GUESS }, "Room does not exist for police guess");
+            logger.warn({ roomId, event: gameEvents.POLICE_GUESS }, "Room does not exist for police guess");
             return;
         }
 
         const currentRound = room.rounds[room.rounds.length - 1];
         if (currentRound.status === "END") {
-            logger.warn({ roomKey, event: gameEvents.POLICE_GUESS }, "No active round for police guess");
+            logger.warn({ roomId, event: gameEvents.POLICE_GUESS }, "No active round for police guess");
             return;
         }
 
@@ -330,7 +384,7 @@ export const policeGuess = (socket: Socket, io: Server) => {
 
         // Check if player is police
         if (!playerRole || playerRole.role !== "police") {
-            logger.warn({ playerId, roomKey, event: gameEvents.POLICE_GUESS }, "Player is not a police");
+            logger.warn({ playerId, roomId, event: gameEvents.POLICE_GUESS }, "Player is not a police");
             return;
         }
 
@@ -342,37 +396,37 @@ export const policeGuess = (socket: Socket, io: Server) => {
         currentRound.policeGuess = targetPlayerId;
 
         if (targetPlayerId === kallanPlayerId) {
-            logger.info({ policeId: playerId, kallanId: kallanPlayerId, roomKey }, "Police correctly guessed kallan");
+            logger.info({ policeId: playerId, kallanId: kallanPlayerId, roomId }, "Police correctly guessed kallan");
 
-            io.to(roomKey).emit(gameEvents.WINNER, {
-                roomKey,
+            io.to(roomId).emit(gameEvents.WINNER, {
+                roomId,
                 winner: "police",
                 wid: playerId,
                 message: "Police wins the round"
             });
             currentRound.winner = "police";
 
-            endRound(io, roomKey);
+            endRound(io, roomId);
         } else {
-            logger.info({ policeId: playerId, targetId: targetPlayerId, actualKallanId: kallanPlayerId, roomKey }, "Police incorrectly guessed kallan");
+            logger.info({ policeId: playerId, targetId: targetPlayerId, actualKallanId: kallanPlayerId, roomId }, "Police incorrectly guessed kallan");
 
-            io.to(roomKey).emit(gameEvents.WINNER, {
-                roomKey,
+            io.to(roomId).emit(gameEvents.WINNER, {
+                roomId,
                 winner: "kallan",
                 wid: kallanPlayerId,
                 message: "Police's guessed incorrect."
             });
             currentRound.winner = "kallan";
 
-            endRound(io, roomKey);
+            endRound(io, roomId);
         }
     }
 }
 
 // join-allegiance
 export const joinAllegiance = (socket: Socket, io: Server) => {
-    return ({ roomKey, favor }: { roomKey: string, favor: NonNullable<ministerFavor> }) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId, favor }: { roomId: string, favor: NonNullable<ministerFavor> }) => {
+        const room = ROOMS_MAP.get(roomId);
         if (!room) return;
 
         const currentRound = room.rounds[room.rounds.length - 1];
@@ -404,8 +458,8 @@ export const joinAllegiance = (socket: Socket, io: Server) => {
 
 // end game
 export const endGame = (socket: Socket, io: Server) => {
-    return ({ roomKey }: { roomKey: string }) => {
-        const room = ROOMS_MAP.get(roomKey);
+    return ({ roomId }: { roomId: string }) => {
+        const room = ROOMS_MAP.get(roomId);
         if (!room) return;
         // Gather player data
         const playersArr = Object.values(room.players).map(player => ({
@@ -415,7 +469,7 @@ export const endGame = (socket: Socket, io: Server) => {
         // Sort by score descending
         playersArr.sort((a, b) => b.score - a.score);
         // Emit the sorted results
-        io.to(roomKey).emit(gameEvents.END_GAME, { roomKey, results: playersArr });
+        io.to(roomId).emit(gameEvents.END_GAME, { roomId, results: playersArr });
     };
 }
 
@@ -423,7 +477,8 @@ export const endGame = (socket: Socket, io: Server) => {
 export const attachGameListeners = (socket: Socket, io: Server) => {
     socket.on(socketEvents.CREATE_ROOM, createRoom(socket, io));
     socket.on(socketEvents.JOIN_ROOM, joinRoom(socket, io));
-    
+    socket.on(socketEvents.EXIT_ROOM, exitRoom(socket, io));
+
     socket.on(gameEvents.UPDATE_PLAYER_STATUS, updatePlayerStatus(socket, io));
     socket.on(gameEvents.START_GAME, startGame(socket, io));
     socket.on(gameEvents.END_GAME, endGame(socket, io));

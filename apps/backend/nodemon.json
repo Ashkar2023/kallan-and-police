@@ -1,11 +1,12 @@
 {
+    "$schema": "https://www.schemastore.org/nodemon.json",
     "restartable": "rs",
     "ignore": [
         ".git",
         "node_modules/**/node_modules"
     ],
     "verbose": false,
-    "exec":"pnpm run build && node --env-file=.env dist/index.js",
+    "exec":"pnpm run build && node --env-file=.env dist/index.js || exit 1",
     "execMap": {},
     "watch": [
         "src/",
